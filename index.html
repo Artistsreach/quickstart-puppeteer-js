@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browserbase Quickstart</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Browserbase Puppeteer Quickstart</h1>
+        
+        <div class="controls">
+            <button id="create-session">Create Session</button>
+            <button id="list-sessions">List Sessions</button>
+            <div class="get-session">
+                <input type="text" id="session-id-input" placeholder="Enter Session ID">
+                <button id="get-session">Get Session</button>
+                <button id="end-session">End Session</button>
+            </div>
+        </div>
+
+        <pre id="output"></pre>
+
+        <div id="live-view">
+            <iframe id="live-view-iframe" style="width: 100%; height: 600px; border: 1px solid #ccc;"></iframe>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

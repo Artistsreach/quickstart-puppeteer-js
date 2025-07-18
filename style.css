@@ -1,0 +1,48 @@
+body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 20px;
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.controls {
+    margin-bottom: 20px;
+}
+
+.get-session {
+    margin-top: 10px;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    margin: 5px;
+}
+
+input {
+    padding: 10px;
+    font-size: 16px;
+}
+
+pre {
+    background: #eee;
+    padding: 20px;
+    border-radius: 5px;
+    text-align: left;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+#live-view a {
+    display: block;
+    margin-top: 20px;
+    font-size: 18px;
+}

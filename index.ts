@@ -1,3 +1,4 @@
+import "dotenv/config";
 import puppeteer from "puppeteer-core";
 import Browserbase from "@browserbasehq/sdk";
 
@@ -47,4 +48,3 @@ await browser.close();
 console.log(
   `Session complete! View replay at https://browserbase.com/sessions/${session.id}`,
 );
-

@@ -18,12 +18,21 @@
                 <button id="get-session">Get Session</button>
                 <button id="end-session">End Session</button>
             </div>
+            <div class="search-container">
+                <input type="text" id="command-input" placeholder="Enter your command">
+                <button id="command-button">Command</button>
+            </div>
         </div>
 
         <pre id="output"></pre>
 
         <div id="live-view">
             <iframe id="live-view-iframe" style="width: 100%; height: 600px; border: 1px solid #ccc;"></iframe>
+        </div>
+        <div id="replay-link"></div>
+        <div class="subsequent-command-container">
+            <input type="text" id="subsequent-command-input" placeholder="Enter subsequent command">
+            <button id="subsequent-command-button">Execute</button>
         </div>
     </div>
     <script src="script.js"></script>

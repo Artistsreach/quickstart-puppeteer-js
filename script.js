@@ -109,25 +109,30 @@ commandButton.addEventListener('click', async () => {
         outputElement.textContent = 'Please enter a command.';
         return;
     }
-    outputElement.textContent = 'Creating session...';
-    liveViewFrame.src = 'about:blank';
-    try {
-        const response = await fetch('/api/sessions', { method: 'POST' });
-        const result = await response.json();
-        if (result.id) {
-            currentSessionId = result.id;
-            sessionIdInput.value = result.id;
-            const debugUrlResponse = await fetch(`/api/sessions/${result.id}/debug`);
-            const debugUrlResult = await debugUrlResponse.json();
-            if (debugUrlResult.debuggerFullscreenUrl) {
-                liveViewFrame.src = debugUrlResult.debuggerFullscreenUrl;
+
+    if (currentSessionId) {
+        executeCommand(prompt, currentSessionId);
+    } else {
+        outputElement.textContent = 'Creating session...';
+        liveViewFrame.src = 'about:blank';
+        try {
+            const response = await fetch('/api/sessions', { method: 'POST' });
+            const result = await response.json();
+            if (result.id) {
+                currentSessionId = result.id;
+                sessionIdInput.value = result.id;
+                const debugUrlResponse = await fetch(`/api/sessions/${result.id}/debug`);
+                const debugUrlResult = await debugUrlResponse.json();
+                if (debugUrlResult.debuggerFullscreenUrl) {
+                    liveViewFrame.src = debugUrlResult.debuggerFullscreenUrl;
+                }
+                await executeCommand(prompt, result.id);
+            } else {
+                outputElement.textContent = JSON.stringify(result, null, 2);
             }
-            executeCommand(prompt, result.id);
-        } else {
-            outputElement.textContent = JSON.stringify(result, null, 2);
+        } catch (error) {
+            outputElement.textContent = `Error: ${error.message}`;
         }
-    } catch (error) {
-        outputElement.textContent = `Error: ${error.message}`;
     }
 });
 

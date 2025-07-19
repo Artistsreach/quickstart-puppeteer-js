@@ -22,6 +22,13 @@ and LLM data retrievals.
 
 **Get started in under one minute** with Puppeteer.
 
+## Features
+- **Multi-turn Browser Automation**: The application now supports multi-turn browser automation, allowing you to send a sequence of commands to the same browser session.
+- **Persistent Sessions**: The application now uses persistent sessions, which remain active between commands, allowing for complex, multi-step workflows.
+- **Real-time Debugging**: A live view of the browser is streamed to the frontend, allowing you to see the agent's actions in real-time.
+- **Session Management**: The application includes basic session management features, allowing you to create, list, get, and end Browserbase sessions.
+- **Command Execution**: You can send commands to the agent, which will be executed in the browser.
+- **Data Extraction**: The application includes an example of how to use the agent to extract data from a webpage.
 
 ## Setup
 
@@ -41,7 +48,7 @@ tsc -w
 ### 3. Run the script:
 
 ```bash
-BROWSERBASE_PROJECT_ID=xxx BROWSERBASE_API_KEY=xxxx node dist/index.js
+BROWSERBASE_PROJECT_ID=xxx BROWSERBASE_API_KEY=xxxx node dist/server.js
 ```
 
 

@@ -1,79 +1,31 @@
-import { FunctionDeclaration, Type } from "@google/genai";
+import { tool } from 'ai';
+import { z } from 'zod';
 
-export const goToURLDeclaration: FunctionDeclaration = {
-  name: "goToURL",
-  description: "Navigates the browser to a specified URL.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      url: { type: Type.STRING, description: "The URL to navigate to." },
-    },
-    required: ["url"],
-  },
-};
+export const clickElementTool = tool({
+  description: "Clicks a specific interactive element on the page, such as a button or a link.",
+  parameters: z.object({
+    elementId: z.string().describe("The ID of the element to click from the provided world model."),
+  }),
+});
 
-export const clickElementDeclaration: FunctionDeclaration = {
-  name: "clickElement",
-  description: "Performs a mouse click on an element on the current page.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      selector: {
-        type: Type.STRING,
-        description:
-          "A standard CSS selector used to uniquely identify the target element to be clicked.",
-      },
-    },
-    required: ["selector"],
-  },
-};
+export const typeTextTool = tool({
+  description: "Types text into a specific input field, such as a textbox or textarea.",
+  parameters: z.object({
+    elementId: z.string().describe("The ID of the input element to type into."),
+    text: z.string().describe("The text to type."),
+  }),
+});
 
-export const typeInElementDeclaration: FunctionDeclaration = {
-  name: "typeInElement",
-  description:
-    "Types the provided text into a form element like an input field or textarea.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      selector: {
-        type: Type.STRING,
-        description:
-          "A standard CSS selector used to uniquely identify the target input element.",
-      },
-      text: {
-        type: Type.STRING,
-        description: "The text to be typed into the element.",
-      },
-    },
-    required: ["selector", "text"],
-  },
-};
+export const navigateToUrlTool = tool({
+  description: "Navigates the browser to a new, specified URL.",
+  parameters: z.object({
+    url: z.string().min(1).describe("The full URL to navigate to."),
+  }),
+});
 
-export const extractTextDeclaration: FunctionDeclaration = {
-  name: "extractText",
-  description:
-    "Retrieves the visible text content from a specific element on the page.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      selector: {
-        type: Type.STRING,
-        description:
-          "A standard CSS selector used to uniquely identify the target element from which to extract text.",
-      },
-    },
-    required: ["selector"],
-  },
-};
-
-export const screenshotDeclaration: FunctionDeclaration = {
-  name: "screenshot",
-  description: "Takes a screenshot of the current page.",
-  parameters: {
-    type: Type.OBJECT,
-    properties: {
-      path: { type: Type.STRING, description: "The path to save the screenshot to." },
-    },
-    required: ["path"],
-  },
-};
+export const answerTool = tool({
+  description: "Provides a final answer to the user when the task is complete or if it cannot be completed.",
+  parameters: z.object({
+    response: z.string().describe("The final response or confirmation for the user."),
+  }),
+});

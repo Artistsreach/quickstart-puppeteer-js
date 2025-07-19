@@ -29,6 +29,44 @@ const sessionId = urlParams.get('sessionId');
 
 if (sessionId) {
     loadLiveView();
+    const initialPrompt = urlParams.get('prompt');
+    if (initialPrompt) {
+        const decodedPrompt = decodeURIComponent(initialPrompt);
+        sendInitialPrompt(decodedPrompt);
+    }
+}
+
+async function sendInitialPrompt(prompt) {
+    isThinking = true;
+    appendMessage('user', prompt);
+
+    try {
+        // First, get a quick response
+        const quickResponse = await fetch('/api/quick-response', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ prompt }),
+        });
+        const quickResult = await quickResponse.json();
+        appendMessage('assistant', quickResult.message);
+
+        // Then, execute the command
+        const commandResponse = await fetch('/api/command', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ prompt, sessionId }),
+        });
+        const commandResult = await commandResponse.json();
+        appendMessage('assistant', commandResult.message);
+    } catch (error) {
+        appendMessage('assistant', `Error: ${error.message}`);
+    } finally {
+        isThinking = false;
+    }
 }
 
 async function loadLiveView() {

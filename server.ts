@@ -164,61 +164,77 @@ app.get('/api/sessions/:id/debug', async (req: Request, res: Response) => {
 });
 
 async function runAgent(page: Page, goal: string) {
-  let lastAction = 'Initial goal';
+  let lastAction = "Initial goal";
+  const maxSteps = 5;
+  let step = 0;
 
-  const worldModel = await createWorldModel(page);
-  const prompt = `
-    You are a browser automation agent. Your goal is to complete the task requested by the user.
-    You are currently on the page: ${page.url()}
-    Overall Goal: ${goal}
-    Previous Action: ${lastAction}
-    Current Page World Model (Interactive Elements):
-    ${JSON.stringify(worldModel, null, 2)}
+  while (step < maxSteps) {
+    const worldModel = await createWorldModel(page);
+    const prompt = `
+      You are a browser automation agent. Your goal is to complete the task requested by the user.
+      You are currently on the page: ${page.url()}
+      Overall Goal: ${goal}
+      Previous Action: ${lastAction}
+      Current Page World Model (Interactive Elements):
+      ${JSON.stringify(worldModel, null, 2)}
 
-    Based on the goal and the current page state, what is the next single action to take?
-  `;
+      Based on the goal and the current page state, what is the next single action to take? If you have completed the task, use the "answer" tool to respond.
+    `;
 
-  try {
-    const { toolCalls, text } = await generateText({
-      model: google('gemini-2.0-flash-exp'),
-      tools: { clickElement: clickElementTool, typeText: typeTextTool, navigateToUrl: navigateToUrlTool, answer: answerTool },
-      prompt,
-    });
+    try {
+      const { toolCalls, text } = await generateText({
+        model: google("gemini-2.0-flash-exp"),
+        tools: {
+          clickElement: clickElementTool,
+          typeText: typeTextTool,
+          navigateToUrl: navigateToUrlTool,
+          answer: answerTool,
+        },
+        prompt,
+      });
 
-    if (toolCalls.length === 0) {
-      console.log(`LLM provided a text response: ${text}.`);
-      return;
-    }
-
-    for (const toolCall of toolCalls) {
-      lastAction = `${toolCall.toolName}(${JSON.stringify(toolCall.args)})`;
-      console.log(`Executing: ${lastAction}`);
-
-      switch (toolCall.toolName) {
-        case 'clickElement': {
-          const { elementId } = toolCall.args;
-          await clickElement(page, elementId);
-          break;
+      if (toolCalls.length === 0) {
+        console.log(`LLM provided a text response: ${text}.`);
+        if (step === maxSteps - 1) {
+          return text;
         }
-        case 'typeText': {
-          const { elementId, text: textToType } = toolCall.args;
-          await typeText(page, elementId, textToType);
-          break;
-        }
-        case 'navigateToUrl': {
+        step++;
+        continue;
+      }
+
+      for (const toolCall of toolCalls) {
+        lastAction = `${toolCall.toolName}(${JSON.stringify(toolCall.args)})`;
+        console.log(`Executing: ${lastAction}`);
+
+        switch (toolCall.toolName) {
+          case "clickElement": {
+            const { elementId } = toolCall.args;
+            await clickElement(page, elementId);
+            break;
+          }
+          case "typeText": {
+            const { elementId, text: textToType } = toolCall.args;
+            await typeText(page, elementId, textToType);
+            break;
+          }
+          case "navigateToUrl": {
             const { url } = toolCall.args;
             await navigateToUrl(page, url);
             break;
-        }
-        case 'answer': {
-          console.log(`Agent answered: ${toolCall.args.response}`);
-          break;
+          }
+          case "answer": {
+            console.log(`Agent answered: ${toolCall.args.response}`);
+            return toolCall.args.response;
+          }
         }
       }
+    } catch (error) {
+      console.error("Error during agent execution:", error);
+      return "An error occurred during agent execution.";
     }
-  } catch (error) {
-    console.error("Error during agent execution:", error);
+    step++;
   }
+  return "Agent finished after maximum steps.";
 }
 
 app.post("/api/command", async (req: Request, res: Response) => {
@@ -268,10 +284,10 @@ app.post("/api/command", async (req: Request, res: Response) => {
     const pages = await browser.pages();
     const page = pages[0];
 
-    await runAgent(page, prompt);
+    const finalResponse = await runAgent(page, prompt);
 
     res.json({
-      message: `Task “[${prompt}]” Complete!`,
+      message: finalResponse || `Task “[${prompt}]” Complete!`,
       sessionId: session.id,
     });
   } catch (error) {

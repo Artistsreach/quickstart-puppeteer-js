@@ -34,14 +34,8 @@ startSessionButton.addEventListener('click', async () => {
         const response = await fetch('/api/sessions', { method: 'POST' });
         const result = await response.json();
         if (result.id) {
-            await fetch('/api/command', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ prompt, sessionId: result.id }),
-            });
-            window.location.href = `chat.html?sessionId=${result.id}`;
+            const encodedPrompt = encodeURIComponent(prompt);
+            window.location.href = `chat.html?sessionId=${result.id}&prompt=${encodedPrompt}`;
         } else {
             alert('Failed to create session.');
             loaderWrapper.style.display = 'none';

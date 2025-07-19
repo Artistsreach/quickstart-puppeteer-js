@@ -5,6 +5,7 @@ import "dotenv/config";
 import puppeteer, { Page } from "puppeteer-core";
 import { Browserbase } from "@browserbasehq/sdk";
 import { generateText } from 'ai';
+import { GoogleGenAI } from "@google/genai";
 import { google } from './src/config.js';
 import { createWorldModel } from './src/world-model.js';
 import {
@@ -37,6 +38,33 @@ const BROWSERBASE_PROJECT_ID = process.env.BROWSERBASE_PROJECT_ID;
 
 app.use(express.static(path.join(__dirname, '../')));
 app.use(express.json());
+
+app.get('/experiment', (req: Request, res: Response) => {
+    res.sendFile(path.join(__dirname, '../experiment.html'));
+});
+
+app.post('/api/quick-response', async (req: Request, res: Response) => {
+    const { prompt } = req.body;
+    if (!prompt) {
+        return res.status(400).json({ error: 'Missing prompt.' });
+    }
+
+    try {
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                thinkingConfig: {
+                    thinkingBudget: 0, // Disables thinking
+                },
+            }
+        });
+        res.json({ message: response.text });
+    } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+    }
+});
 
 app.post('/api/sessions', async (req: Request, res: Response) => {
     if (!BROWSERBASE_API_KEY || !BROWSERBASE_PROJECT_ID) {
@@ -136,65 +164,60 @@ app.get('/api/sessions/:id/debug', async (req: Request, res: Response) => {
 });
 
 async function runAgent(page: Page, goal: string) {
-  let taskComplete = false;
   let lastAction = 'Initial goal';
 
-  while (!taskComplete) {
-    const worldModel = await createWorldModel(page);
-    const prompt = `
-      You are a browser automation agent. You are to perform the action requested by the user. Do not take any other actions.
-      Overall Goal: ${goal}
-      Previous Action: ${lastAction}
-      Current Page World Model (Interactive Elements):
-      ${JSON.stringify(worldModel, null, 2)}
+  const worldModel = await createWorldModel(page);
+  const prompt = `
+    You are a browser automation agent. Your goal is to complete the task requested by the user.
+    You are currently on the page: ${page.url()}
+    Overall Goal: ${goal}
+    Previous Action: ${lastAction}
+    Current Page World Model (Interactive Elements):
+    ${JSON.stringify(worldModel, null, 2)}
 
-      Based on the goal and the current page state, what is the next single action to take?
-    `;
+    Based on the goal and the current page state, what is the next single action to take?
+  `;
 
-    try {
-      const { toolCalls, text } = await generateText({
-        model: google('gemini-1.5-flash-latest'),
-        tools: { clickElement: clickElementTool, typeText: typeTextTool, navigateToUrl: navigateToUrlTool, answer: answerTool },
-        prompt,
-      });
+  try {
+    const { toolCalls, text } = await generateText({
+      model: google('gemini-2.0-flash-exp'),
+      tools: { clickElement: clickElementTool, typeText: typeTextTool, navigateToUrl: navigateToUrlTool, answer: answerTool },
+      prompt,
+    });
 
-      if (toolCalls.length === 0) {
-        console.log(`LLM provided a text response: ${text}. Assuming task is complete.`);
-        taskComplete = true;
-        break;
-      }
+    if (toolCalls.length === 0) {
+      console.log(`LLM provided a text response: ${text}.`);
+      return;
+    }
 
-      for (const toolCall of toolCalls) {
-        lastAction = `${toolCall.toolName}(${JSON.stringify(toolCall.args)})`;
-        console.log(`Executing: ${lastAction}`);
+    for (const toolCall of toolCalls) {
+      lastAction = `${toolCall.toolName}(${JSON.stringify(toolCall.args)})`;
+      console.log(`Executing: ${lastAction}`);
 
-        switch (toolCall.toolName) {
-          case 'clickElement': {
-            const { elementId } = toolCall.args;
-            await clickElement(page, elementId);
+      switch (toolCall.toolName) {
+        case 'clickElement': {
+          const { elementId } = toolCall.args;
+          await clickElement(page, elementId);
+          break;
+        }
+        case 'typeText': {
+          const { elementId, text: textToType } = toolCall.args;
+          await typeText(page, elementId, textToType);
+          break;
+        }
+        case 'navigateToUrl': {
+            const { url } = toolCall.args;
+            await navigateToUrl(page, url);
             break;
-          }
-          case 'typeText': {
-            const { elementId, text: textToType } = toolCall.args;
-            await typeText(page, elementId, textToType);
-            break;
-          }
-          case 'navigateToUrl': {
-              const { url } = toolCall.args;
-              await navigateToUrl(page, url);
-              break;
-          }
-          case 'answer': {
-            console.log(`Agent answered: ${toolCall.args.response}`);
-            taskComplete = true;
-            break;
-          }
+        }
+        case 'answer': {
+          console.log(`Agent answered: ${toolCall.args.response}`);
+          break;
         }
       }
-    } catch (error) {
-      console.error("Error during agent execution:", error);
-      taskComplete = true; // Exit loop on error
     }
+  } catch (error) {
+    console.error("Error during agent execution:", error);
   }
 }
 
@@ -248,7 +271,7 @@ app.post("/api/command", async (req: Request, res: Response) => {
     await runAgent(page, prompt);
 
     res.json({
-      message: `Session complete! View replay at https://browserbase.com/sessions/${session.id}`,
+      message: `Task “[${prompt}]” Complete!`,
       sessionId: session.id,
     });
   } catch (error) {
@@ -299,7 +322,7 @@ app.post("/api/extract", async (req: Request, res: Response) => {
         );
 
         res.json({
-            message: `Extraction complete! View replay at https://browserbase.com/sessions/${session.id}`,
+            message: `Task “[${userRequest}]” Complete!`,
             sessionId: session.id,
             data: result,
         });

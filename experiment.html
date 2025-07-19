@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Automation Experiment</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="theme-switch-wrapper">
+        <label class="theme-switch" for="checkbox">
+            <input type="checkbox" id="checkbox" />
+            <div class="slider round"></div>
+        </label>
+    </div>
+    <div class="container">
+        <main class="content">
+            <h1>Browser Automation Experiment</h1>
+            <div class="input-group">
+                <input type="text" id="initial-command-input" placeholder="Enter your initial command...">
+                <button id="start-session-button">Start</button>
+            </div>
+            <div class="loader-wrapper" style="display: none;">
+                <div class="loader"></div>
+            </div>
+        </main>
+    </div>
+    <script src="experiment.js"></script>
+</body>
+</html>

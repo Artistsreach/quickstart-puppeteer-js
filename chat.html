@@ -11,13 +11,14 @@
     <div class="main-container">
         <div class="live-view-container">
             <iframe id="live-view-iframe" src="about:blank"></iframe>
-            <div class="chat-container">
-                <div class="chat-toggle-tab"><i class="fas fa-chevron-left"></i></div>
-                <div class="chat-messages"></div>
-                <div class="chat-input-container">
-                    <input type="text" id="chat-input" placeholder="Enter your command...">
-                    <button id="send-button">Send</button>
-                </div>
+        </div>
+        <div class="chat-container">
+            <div class="chat-toggle-tab"><i class="fas fa-chevron-left"></i></div>
+            <div class="chat-messages"></div>
+            <div id="suggested-steps" class="suggested-steps-container"></div>
+            <div class="chat-input-container">
+                <input type="text" id="chat-input" placeholder="Enter your command...">
+                <button id="send-button">Send</button>
             </div>
         </div>
         <div class="end-session-container">

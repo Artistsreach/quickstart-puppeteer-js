@@ -26,8 +26,9 @@
     ]
   },
   "include": [
-    "index.ts",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    "app/**/*.tsx",
+    "src/**/*.ts"
   ],
   "exclude": [
     "node_modules",

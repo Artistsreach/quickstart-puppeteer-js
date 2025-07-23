@@ -1,8 +1,23 @@
 {
-  "rewrites": [
+  "builds": [
     {
-      "source": "/",
-      "destination": "/experiment.html"
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "public" }
+    },
+    {
+      "src": "server.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "server.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/public/$1"
     }
   ]
 }

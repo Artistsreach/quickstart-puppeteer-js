@@ -1,4 +1,3 @@
-import next from 'next';
 import express, { Request, Response } from 'express';
 import path from "path";
 import { fileURLToPath } from "url";
@@ -28,10 +27,6 @@ interface Session {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dev = process.env.NODE_ENV !== 'production';
-const nextApp = next({ dev });
-const handle = nextApp.getRequestHandler();
-
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -39,9 +34,9 @@ const BROWSERBASE_API_KEY = process.env.BROWSERBASE_API_KEY;
 const BROWSERBASE_PROJECT_ID = process.env.BROWSERBASE_PROJECT_ID;
 const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
 
-nextApp.prepare().then(() => {
-  app.use(express.static(path.join(__dirname, '../'), { index: false }));
-  app.use(express.json());
+app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.static(path.join(__dirname, '..')));
+app.use(express.json());
 
   app.get('/', (req: Request, res: Response) => {
       res.sendFile(path.join(__dirname, '../experiment.html'));
@@ -499,11 +494,6 @@ nextApp.prepare().then(() => {
       }
   });
 
-  app.all('*', (req: Request, res: Response) => {
-    return handle(req, res);
-  });
-
   app.listen(port, () => {
     console.log(`Server listening at http://localhost:${port}`);
   });
-});

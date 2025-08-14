@@ -67,7 +67,7 @@ app.post('/api/logo-and-plan', async (req: Request, res: Response) => {
         const logoUrl = imageSearchResponse.data.results[0]?.thumbnail.src;
 
         // Generate automation plan with Gemini
-        const model = google('gemini-2.0-flash-lite');
+        const model = google('gemini-2.5-flash-lite');
         const { text } = await generateText({
             model,
             prompt: `Create a step-by-step automation plan for: ${prompt}. The plan should be in Markdown format. For any integration or tool mentioned (like Zapier, Slack, etc.), use a placeholder in the format [LOGO: "tool name"].`
@@ -221,11 +221,17 @@ app.post("/api/start", (req: Request, res: Response) => {
 async function runAgent(page: Page, goal: string): Promise<{
   finalResponse: string;
   intentMap: any;
+  taskContext: any;
+  todos: string[];
 }> {
   const maxSteps = 5;
   let step = 0;
   let screenshot: string | undefined;
-  const model = google('gemini-2.0-flash-exp');
+  const model = google('gemini-2.5-flash-lite');
+
+  // Shared task context and todo list across steps
+  let taskContext: any = { sources: [], notes: [] };
+  let todos: string[] = [];
 
   console.log(`Starting agent with goal: ${goal}`);
 
@@ -240,15 +246,32 @@ async function runAgent(page: Page, goal: string): Promise<{
       );
 
       const prompt = `
-        You are an expert puppeteer tool calling browser automation agent. Your goal is to complete the tasks requested by the user and execute subsequential steps based on their overall goal, previous history of actions and overseer intent map.
-        You are currently on the web page: ${page.url()}
+        You are an expert puppeteer tool-calling automation agent.
+        Use a todo list and a shared task context to plan and execute.
+
+        Current URL: ${page.url()}
         Overall Goal: ${goal}
-        History of actions taken:
+        History:
         ${history.join('\n')}
         Overseer's Intent Map:
         ${JSON.stringify(intentMap, null, 2)}
+        Todo List (you can update via updateTodoList):
+        ${JSON.stringify(todos)}
+        Task Context (you can add to via uploadToTaskContext):
+        ${JSON.stringify(taskContext, null, 2)}
 
-        Based on the goal, the history of actions, the current page state, and the overseer's intent map, what is the next single action to take? Execute this action. If you have completed the task, use the "answer" tool to respond.
+        Guidelines:
+        - For web research or data gathering, prefer Firecrawl tools:
+          * firecrawlSearch(query, limit)
+          * firecrawlScrape(url, formats[, jsonPrompt])
+          * firecrawlExtract(urls[, prompt, enableWebSearch, schema])
+          * uploadToTaskContext(data[, summary]) to persist findings
+          * updateTodoList(todos[, note]) to maintain an explicit plan
+        - For browser interaction inside the current session, use:
+          * clickElement, typeText, navigateToUrl
+        - If the task is complete, use the "answer" tool to respond succinctly.
+
+        Decide the next single action and execute it now.
       `;
 
       console.log(`Step ${step + 1}: Generating action...`);
@@ -315,7 +338,7 @@ async function runAgent(page: Page, goal: string): Promise<{
       if (toolCalls.length === 0) {
         console.log(`LLM provided a text response: ${text}.`);
         history.push(`LLM Response: ${text}`);
-        if (step === maxSteps - 1) return { finalResponse: text, intentMap };
+        if (step === maxSteps - 1) return { finalResponse: text, intentMap, taskContext, todos };
         step++;
         continue;
       }
@@ -323,15 +346,19 @@ async function runAgent(page: Page, goal: string): Promise<{
       for (const toolCall of toolCalls) {
         console.log('Tool call: ', toolCall);
         if (toolCall.toolName === 'answer') {
-          return { finalResponse: toolCall.args.response, intentMap };
+          return { finalResponse: toolCall.args.response, intentMap, taskContext, todos };
         }
 
-        const verification = await verifyAction(intentMap, toolCall);
-        if (!verification.isValid) {
-          const reason = `Action not approved by overseer: ${verification.reasoning}`;
-          console.log(reason);
-          history.push(`Step ${step + 1}: Action blocked. Reason: ${reason}`);
-          continue;
+        // Only verify DOM-interaction actions with overseer
+        const requiresVerification = ['clickElement', 'typeText', 'navigateToUrl'].includes(toolCall.toolName);
+        if (requiresVerification) {
+          const verification = await verifyAction(intentMap, toolCall);
+          if (!verification.isValid) {
+            const reason = `Action not approved by overseer: ${verification.reasoning}`;
+            console.log(reason);
+            history.push(`Step ${step + 1}: Action blocked. Reason: ${reason}`);
+            continue;
+          }
         }
 
         const action = `${toolCall.toolName}(${JSON.stringify(toolCall.args)})`;
@@ -341,7 +368,24 @@ async function runAgent(page: Page, goal: string): Promise<{
 
       for (const toolResult of toolResults) {
         console.log('Tool result:', toolResult);
-        screenshot = (toolResult.result as any).screenshot;
+        const name = toolResult.toolName;
+        const result: any = toolResult.result as any;
+
+        if (name === 'uploadToTaskContext' && result) {
+          // Merge data and keep a note
+          if (result.data !== undefined) taskContext.sources.push(result.data);
+          if (result.summary) taskContext.notes.push(result.summary);
+        } else if (name === 'updateTodoList' && result?.todos) {
+          todos = Array.isArray(result.todos) ? result.todos : todos;
+          if (result.note) taskContext.notes.push(`Plan: ${result.note}`);
+        } else if (name === 'firecrawlSearch' || name === 'firecrawlScrape' || name === 'firecrawlExtract') {
+          // Auto-store Firecrawl outputs into context for convenience
+          taskContext.sources.push({ tool: name, output: result });
+        }
+
+        if (result && result.screenshot) {
+          screenshot = result.screenshot;
+        }
       }
 
       const pages = await page.browser().pages();
@@ -368,6 +412,8 @@ async function runAgent(page: Page, goal: string): Promise<{
       return {
         finalResponse: 'An error occurred during agent execution.',
         intentMap: null,
+        taskContext,
+        todos,
       };
     }
     step++;
@@ -375,6 +421,8 @@ async function runAgent(page: Page, goal: string): Promise<{
   return {
     finalResponse: 'Agent finished after maximum steps.',
     intentMap: null,
+    taskContext,
+    todos,
   };
 }
 
@@ -482,12 +530,14 @@ app.post("/api/command", async (req: Request, res: Response) => {
     const pages = await browser.pages();
     const page = pages[0];
 
-    const { finalResponse, intentMap } = await runAgent(page, prompt);
+    const { finalResponse, intentMap, taskContext, todos } = await runAgent(page, prompt);
 
     res.json({
       message: finalResponse || `Task “[${prompt}]” Complete!`,
       sessionId: session.id,
       intentMap,
+      taskContext,
+      todos,
     });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });

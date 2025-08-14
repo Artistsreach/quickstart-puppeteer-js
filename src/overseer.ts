@@ -62,7 +62,7 @@ export async function createIntentMap(prompt: string, worldModel: any) {
   }
 
   const { object: intentMap } = await generateObject({
-    model: google('gemini-2.0-flash-exp'),
+    model: google('gemini-2.5-flash-lite'),
     schema: IntentMapSchema,
     messages,
   });
@@ -72,7 +72,7 @@ export async function createIntentMap(prompt: string, worldModel: any) {
 
 export async function verifyAction(intentMap: any, action: any) {
   const { object: verification } = await generateObject({
-    model: google('gemini-2.0-flash-exp'),
+    model: google('gemini-2.5-flash-lite'),
     schema: z.object({
       isValid: z.boolean(),
       reasoning: z.string(),

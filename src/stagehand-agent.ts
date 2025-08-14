@@ -28,7 +28,7 @@ export class StagehandAgent {
       apiKey: process.env.BROWSERBASE_API_KEY,
       projectId: process.env.BROWSERBASE_PROJECT_ID,
       browserbaseSessionID: config.sessionId,
-      modelName: 'google/gemini-2.0-flash-exp',
+      modelName: 'google/gemini-2.5-flash-lite',
       modelClientOptions: {
         apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
       },

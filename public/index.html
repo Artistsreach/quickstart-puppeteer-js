@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="dark-mode">
+<body>
     <div class="logo-container">
         <img src="https://utdrojtjfwjcvuzmkooj.supabase.co/storage/v1/object/public/content//IMG_6847.png" alt="Light Logo" class="logo light-logo">
         <img src="https://utdrojtjfwjcvuzmkooj.supabase.co/storage/v1/object/public/content//CMDr%202.png" alt="Dark Logo" class="logo dark-logo">
@@ -23,10 +23,12 @@
         <main class="content">
             <h1>What would you like to do?</h1>
             <div class="input-group">
+                <button id="quick-search-button"><i class="fas fa-search"></i></button>
+                <img id="logo" src="" alt="logo" style="display: none; height: 50px; margin-right: 10px;"/>
                 <input type="text" id="initial-command-input" placeholder="Enter your initial command...">
                 <button id="start-session-button">Start</button>
             </div>
-            <button id="quick-search-button" style="display: none;">Quick Search</button>
+            <div id="automation-plan" style="margin-top: 20px;"></div>
             <div class="loader-wrapper" style="display: none;">
                 <div class="loader"></div>
             </div>

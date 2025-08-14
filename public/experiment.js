@@ -4,6 +4,41 @@ const quickSearchButton = document.getElementById('quick-search-button');
 const resultsContainer = document.getElementById('results-container');
 const themeSwitch = document.getElementById('checkbox');
 const loaderWrapper = document.querySelector('.loader-wrapper');
+const logo = document.getElementById('logo');
+const automationPlan = document.getElementById('automation-plan');
+
+initialCommandInput.addEventListener('input', () => {
+    updateLogoAndPlan();
+});
+
+async function updateLogoAndPlan() {
+    const prompt = initialCommandInput.value;
+    if (prompt.length < 3) {
+        logo.style.display = 'none';
+        automationPlan.innerHTML = '';
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/logo-and-plan', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ prompt }),
+        });
+        const result = await response.json();
+        if (result.plan) {
+            automationPlan.innerHTML = result.plan;
+            automationPlan.style.display = 'block';
+        } else {
+            automationPlan.innerHTML = '';
+            automationPlan.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error fetching logo and plan:', error);
+    }
+}
 
 // Typing animation
 const placeholderIdeas = [
@@ -71,13 +106,7 @@ themeSwitch.addEventListener('change', () => {
     }
 });
 
-initialCommandInput.addEventListener('input', () => {
-    if (initialCommandInput.value.trim() !== '') {
-        quickSearchButton.style.display = 'inline-block';
-    } else {
-        quickSearchButton.style.display = 'none';
-    }
-});
+quickSearchButton.style.display = 'inline-block';
 
 quickSearchButton.addEventListener('click', async () => {
     const prompt = initialCommandInput.value;
@@ -132,11 +161,12 @@ function displayResults(results) {
 }
 
 const currentTheme = localStorage.getItem('theme');
-if (currentTheme) {
-    document.body.classList.add(currentTheme === 'dark' ? 'dark-mode' : '');
-    if (currentTheme === 'dark') {
-        themeSwitch.checked = true;
-    }
+if (currentTheme === 'dark') {
+    document.body.classList.add('dark-mode');
+    themeSwitch.checked = true;
+} else {
+    document.body.classList.remove('dark-mode');
+    themeSwitch.checked = false;
 }
 
 startSessionButton.addEventListener('click', async () => {

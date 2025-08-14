@@ -18,6 +18,12 @@ import { createIntentMap, verifyAction } from './src/overseer.js';
 import { createToolSet } from './src/tools/index.js';
 import { extractData } from './src/extractor.js';
 import { ArticleListSchema } from './src/schemas.js';
+import axios from 'axios';
+import { marked } from 'marked';
+
+const BRAVE_API_KEY = process.env.BRAVE_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
 
 interface Session {
   id: string;
@@ -37,6 +43,75 @@ const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
 app.use(express.static('public'));
 app.use(express.json());
 
+app.post('/api/logo-and-plan', async (req: Request, res: Response) => {
+    const { prompt } = req.body;
+
+    if (!prompt) {
+        return res.status(400).json({ error: 'Missing prompt.' });
+    }
+
+    if (!BRAVE_API_KEY || !GEMINI_API_KEY) {
+        return res.status(400).json({ error: 'Missing API keys.' });
+    }
+
+    try {
+        // Fetch logo from Brave Image Search
+        const imageSearchResponse = await axios.get('https://api.search.brave.com/res/v1/images/search', {
+            headers: {
+                'Accept': 'application/json',
+                'X-Subscription-Token': BRAVE_API_KEY
+            },
+            params: { q: `${prompt} logo`, count: 1 }
+        });
+
+        const logoUrl = imageSearchResponse.data.results[0]?.thumbnail.src;
+
+        // Generate automation plan with Gemini
+        const model = google('gemini-2.0-flash-lite');
+        const { text } = await generateText({
+            model,
+            prompt: `Create a step-by-step automation plan for: ${prompt}. The plan should be in Markdown format. For any integration or tool mentioned (like Zapier, Slack, etc.), use a placeholder in the format [LOGO: "tool name"].`
+        });
+
+        // Find all logo placeholders
+        const logoPlaceholders = text.match(/\[LOGO: "([^"]+)"\]/g) || [];
+        let processedText = text;
+
+        for (const placeholder of logoPlaceholders) {
+            const toolNameMatch = placeholder.match(/\[LOGO: "([^"]+)"\]/);
+            if (toolNameMatch && toolNameMatch[1]) {
+                const toolName = toolNameMatch[1];
+                try {
+                    const toolLogoResponse = await axios.get('https://api.search.brave.com/res/v1/images/search', {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Subscription-Token': BRAVE_API_KEY
+                        },
+                        params: { q: `${toolName} logo`, count: 1 }
+                    });
+                    const toolLogoUrl = toolLogoResponse.data.results[0]?.thumbnail.src;
+                    if (toolLogoUrl) {
+                        const markdownImage = `![${toolName} logo](${toolLogoUrl})`;
+                        processedText = processedText.replace(placeholder, markdownImage);
+                    } else {
+                        // If no logo found, just remove the placeholder
+                        processedText = processedText.replace(placeholder, '');
+                    }
+                } catch (e) {
+                    console.error(`Failed to fetch logo for ${toolName}`, e);
+                    // If fetching fails, remove the placeholder
+                    processedText = processedText.replace(placeholder, '');
+                }
+            }
+        }
+
+        const plan = `<h2>${prompt} Plan</h2><img src="${logoUrl}" alt="${prompt} logo" class="main-logo" /><br/>${marked(processedText)}`;
+
+        res.json({ plan });
+    } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+    }
+});
 
 app.post('/api/sessions', async (req: Request, res: Response) => {
     if (!BROWSERBASE_API_KEY || !BROWSERBASE_PROJECT_ID) {
@@ -430,6 +505,7 @@ app.post('/search', async (req: Request, res: Response) => {
     }
 
     try {
+        console.log(`Using Firecrawl API Key: ${FIRECRAWL_API_KEY.substring(0, 5)}...${FIRECRAWL_API_KEY.slice(-4)}`);
         const app = new FirecrawlApp({ apiKey: FIRECRAWL_API_KEY });
         const searchResult = await app.search(query, { limit: 5 });
         res.json(searchResult);

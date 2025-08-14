@@ -25,6 +25,7 @@
   "dependencies": {
     "@ai-sdk/google": "^1.2.22",
     "@browserbasehq/sdk": "^2.6.0",
+    "@browserbasehq/stagehand": "^2.4.2",
     "@google/genai": "^1.10.0",
     "@mendable/firecrawl-js": "^1.21.1",
     "@stackframe/stack": "^2.8.22",
@@ -36,6 +37,7 @@
     "lucide-react": "^0.525.0",
     "marked": "^16.1.1",
     "next": "^15.4.3",
+    "playwright": "^1.54.2",
     "puppeteer-core": "^22.15.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

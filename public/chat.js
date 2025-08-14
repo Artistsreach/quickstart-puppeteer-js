@@ -26,19 +26,51 @@ if (currentTheme) {
     document.body.classList.add(currentTheme === 'dark' ? 'dark-mode' : '');
 }
 
-const urlParams = new URLSearchParams(window.location.search);
-const sessionId = urlParams.get('sessionId');
+// No engine toggle; always use Puppeteer backend
 
-if (sessionId) {
-    fetch('/api/start', { method: 'POST' });
-    loadLiveView();
-    const initialPromptParam = urlParams.get('prompt');
-    if (initialPromptParam) {
-        const decodedPrompt = decodeURIComponent(initialPromptParam);
-        originalPrompt = decodedPrompt;
-        sendInitialPrompt(decodedPrompt);
+const urlParams = new URLSearchParams(window.location.search);
+let sessionId = urlParams.get('sessionId');
+const initialPromptParam = urlParams.get('prompt');
+
+(async () => {
+    if (sessionId) {
+        // Existing flow when session already exists
+        fetch('/api/start', { method: 'POST' });
+        loadLiveView();
+        if (initialPromptParam) {
+            const decodedPrompt = decodeURIComponent(initialPromptParam);
+            originalPrompt = decodedPrompt;
+            await sendInitialPrompt(decodedPrompt);
+        }
+        return;
     }
-}
+
+    // New flow: if no sessionId but prompt is provided, create a session and start
+    if (!sessionId && initialPromptParam) {
+        try {
+            const response = await fetch('/api/sessions', { method: 'POST' });
+            const result = await response.json();
+            if (result && result.id) {
+                sessionId = result.id;
+                // Update URL to include sessionId for consistency and future reloads
+                const params = new URLSearchParams(window.location.search);
+                params.set('sessionId', sessionId);
+                window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+
+                // Initialize live view and start flow
+                fetch('/api/start', { method: 'POST' });
+                loadLiveView();
+                const decodedPrompt = decodeURIComponent(initialPromptParam);
+                originalPrompt = decodedPrompt;
+                await sendInitialPrompt(decodedPrompt);
+            } else {
+                appendMessage('assistant', 'Error: Failed to create a browser session.');
+            }
+        } catch (error) {
+            appendMessage('assistant', `Error creating session: ${error.message}`);
+        }
+    }
+})();
 
 async function sendInitialPrompt(prompt) {
     isThinking = true;
@@ -101,11 +133,16 @@ async function loadLiveView() {
     try {
         const debugUrlResponse = await fetch(`/api/sessions/${sessionId}/debug`);
         const debugUrlResult = await debugUrlResponse.json();
-        if (debugUrlResult.debuggerFullscreenUrl) {
+        if (debugUrlResult && debugUrlResult.debuggerFullscreenUrl) {
             liveViewFrame.src = debugUrlResult.debuggerFullscreenUrl;
+        } else {
+            // Fallback to direct session page if API key not configured or no url returned
+            liveViewFrame.src = `https://www.browserbase.com/sessions/${sessionId}`;
         }
     } catch (error) {
         console.error('Error loading live view:', error);
+        // Fallback to direct session page
+        liveViewFrame.src = `https://www.browserbase.com/sessions/${sessionId}`;
     }
 }
 

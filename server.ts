@@ -113,6 +113,7 @@ app.post('/api/logo-and-plan', async (req: Request, res: Response) => {
     }
 });
 
+
 app.post('/api/sessions', async (req: Request, res: Response) => {
     if (!BROWSERBASE_API_KEY || !BROWSERBASE_PROJECT_ID) {
         return res.status(400).json({ error: 'Missing API key or project ID.' });

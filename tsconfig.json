@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "outDir": "dist/"
   },
-  "include": ["index.ts", "server.ts"]
+  "include": ["index.ts", "server.ts", "src/**/*.ts"]
 }

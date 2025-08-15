@@ -6,8 +6,6 @@ const liveViewFrame = document.getElementById('live-view-iframe');
 const chatContainer = document.querySelector('.chat-container');
 const chatToggleTab = document.querySelector('.chat-toggle-tab');
 const suggestedStepsContainer = document.getElementById('suggested-steps');
-const todoListEl = document.getElementById('todo-list');
-const taskContextEl = document.getElementById('task-context');
 let isThinking = false;
 let originalPrompt = '';
 
@@ -105,30 +103,38 @@ async function sendInitialPrompt(prompt) {
     }
 
     try {
-        const commandResp = await fetch('/api/command', {
+        const simpleResp = await fetch('/api/simple-command', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ prompt, sessionId }),
+            body: JSON.stringify({ prompt, sessionId, maxSteps: 8 }),
         });
-        const commandJson = await commandResp.json();
-        if (commandJson?.todos) renderTodoList(commandJson.todos);
-        if (commandJson?.taskContext) renderTaskContext(commandJson.taskContext);
+        const simpleResult = await simpleResp.json();
+        if (thinkingMessage) {
+            thinkingMessage.innerHTML = marked.parse(simpleResult.message || 'Completed.');
+            thinkingMessage.classList.remove('thinking');
+        } else {
+            appendMessage('assistant', simpleResult.message || 'Completed.');
+        }
+        appendSteps(simpleResult.steps);
 
+        // Optionally refresh suggestions using the original goal to keep UI parity
         const newSuggestionsResponse = await fetch('/api/suggestions', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ prompt: originalPrompt, sessionId }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: originalPrompt || prompt, sessionId }),
         });
         const newSuggestionsResult = await newSuggestionsResponse.json();
         if (newSuggestionsResult.intentMap) {
             appendAutomationRecommendation(newSuggestionsResult.intentMap);
         }
     } catch (error) {
-        console.error('Error executing command:', error);
+        console.error('Error executing simple command:', error);
+        if (thinkingMessage) {
+            thinkingMessage.innerHTML = marked.parse(`Error: ${error.message}`);
+            thinkingMessage.classList.remove('thinking');
+        }
     } finally {
         isThinking = false;
     }
@@ -190,30 +196,34 @@ async function sendMessage() {
     }
 
     try {
-        const commandResp = await fetch('/api/command', {
+        const simpleResp = await fetch('/api/simple-command', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ prompt, sessionId }),
+            body: JSON.stringify({ prompt, sessionId, maxSteps: 8 }),
         });
-        const commandJson = await commandResp.json();
-        if (commandJson?.todos) renderTodoList(commandJson.todos);
-        if (commandJson?.taskContext) renderTaskContext(commandJson.taskContext);
-
+        const simpleResult = await simpleResp.json();
+        if (thinkingMessage) {
+            thinkingMessage.innerHTML = marked.parse(simpleResult.message || 'Completed.');
+            thinkingMessage.classList.remove('thinking');
+        } else {
+            appendMessage('assistant', simpleResult.message || 'Completed.');
+        }
+        appendSteps(simpleResult.steps);
         const newSuggestionsResponse = await fetch('/api/suggestions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ prompt: originalPrompt, sessionId }),
+            body: JSON.stringify({ prompt: originalPrompt || prompt, sessionId }),
         });
         const newSuggestionsResult = await newSuggestionsResponse.json();
         if (newSuggestionsResult.intentMap) {
             appendAutomationRecommendation(newSuggestionsResult.intentMap);
         }
     } catch (error) {
-        console.error('Error executing command:', error);
+        console.error('Error executing simple command:', error);
     } finally {
         isThinking = false;
     }
@@ -246,48 +256,17 @@ function appendAutomationRecommendation(intentMap) {
     }
 }
 
-function renderTodoList(todos) {
-    if (!todoListEl) return;
-    todoListEl.innerHTML = '';
-    if (Array.isArray(todos)) {
-        todos.forEach(item => {
-            const li = document.createElement('li');
-            li.textContent = item;
-            todoListEl.appendChild(li);
-        });
-    }
-}
-
-function renderTaskContext(ctx) {
-    if (!taskContextEl) return;
-    // Try to render sources and notes nicely, fallback to JSON
-    const parts = [];
-    if (Array.isArray(ctx?.notes) && ctx.notes.length) {
-        const notesHtml = ctx.notes.map(n => `<li>${escapeHtml(String(n))}</li>`).join('');
-        parts.push(`<h4>Notes</h4><ul>${notesHtml}</ul>`);
-    }
-    if (Array.isArray(ctx?.sources) && ctx.sources.length) {
-        const srcHtml = ctx.sources.map(s => {
-            if (s?.url && s?.title) return `<li><a href="${encodeURI(s.url)}" target="_blank" rel="noopener">${escapeHtml(String(s.title))}</a></li>`;
-            if (s?.url) return `<li><a href="${encodeURI(s.url)}" target="_blank" rel="noopener">${escapeHtml(String(s.url))}</a></li>`;
-            return `<li>${escapeHtml(typeof s === 'string' ? s : JSON.stringify(s))}</li>`;
-        }).join('');
-        parts.push(`<h4>Sources</h4><ul>${srcHtml}</ul>`);
-    }
-    if (parts.length === 0) {
-        taskContextEl.textContent = JSON.stringify(ctx, null, 2);
-    } else {
-        taskContextEl.innerHTML = parts.join('');
-    }
-}
-
-function escapeHtml(str) {
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+function appendSteps(steps) {
+    if (!Array.isArray(steps)) return;
+    steps.forEach((s) => {
+        const payload = {
+            step: s.step,
+            action: s.action,
+            error: s.error || undefined,
+        };
+        const md = '```json\n' + JSON.stringify(payload, null, 2) + '\n```';
+        appendMessage('assistant', md);
+    });
 }
 
 sendButton.addEventListener('click', sendMessage);

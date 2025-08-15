@@ -20,30 +20,7 @@ async function uploadToImgbb(screenshot: string) {
 export async function navigateToUrl(page: Page, url: string) {
   console.log(`Navigating to URL: ${url}`);
   const newUrl = url.startsWith("http") ? url : `https://${url}`;
-  // Optional resource blocking for performance
-  if (process.env.SPEED_BLOCK_RESOURCES === '1') {
-    try {
-      // Play nicely if already enabled by caller
-      // @ts-ignore
-      if (!(page as any)._cmdr_blocking_enabled) {
-        await page.setRequestInterception(true);
-        page.on('request', (request) => {
-          const type = request.resourceType();
-          if (type === 'image' || type === 'stylesheet' || type === 'font') {
-            request.respond({ status: 200, body: 'blocked' }).catch(() => {});
-          } else {
-            request.continue().catch(() => {});
-          }
-        });
-        // @ts-ignore
-        (page as any)._cmdr_blocking_enabled = true;
-      }
-    } catch (e) {
-      console.warn('Could not enable request interception:', e);
-    }
-  }
-  // Faster perceived load; DOM is parsed without waiting for all subresources
-  await page.goto(newUrl, { waitUntil: "domcontentloaded", timeout: 120000 });
+  await page.goto(newUrl, { waitUntil: "networkidle2", timeout: 120000 });
   const screenshot = await page.screenshot({ encoding: "base64" });
   const screenshotUrl = await uploadToImgbb(screenshot);
   console.log(`Navigation to ${newUrl} successful.`);
@@ -69,15 +46,12 @@ export async function clickElement(page: Page, elementId: string) {
     });
   });
 
-  // Ensure target exists & visible, then click
-  await page.waitForSelector(`[data-agent-id="${elementId}"]`, { visible: true, timeout: 15000 });
   await page.click(`[data-agent-id="${elementId}"]`);
 
   let navigationOccurred = false;
   try {
     await Promise.race([
-      // Quicker settle on SPA navigations or content swaps
-      page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 8000 }),
+      page.waitForNavigation({ waitUntil: "networkidle2", timeout: 5000 }),
       targetCreatedPromise,
     ]);
     console.log("Navigation or new tab occurred after click.");
@@ -109,8 +83,6 @@ export async function clickElement(page: Page, elementId: string) {
 
 export async function typeText(page: Page, elementId: string, text: string) {
   console.log(`Typing "${text}" into element with ID: ${elementId}`);
-  // Ensure target is present and visible to avoid racing
-  await page.waitForSelector(`[data-agent-id="${elementId}"]`, { visible: true, timeout: 15000 });
   await page.type(`[data-agent-id="${elementId}"]`, text);
   const screenshot = await page.screenshot({ encoding: "base64" });
   const screenshotUrl = await uploadToImgbb(screenshot);

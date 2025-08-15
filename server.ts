@@ -20,10 +20,10 @@ import { extractData } from './src/extractor.js';
 import { ArticleListSchema } from './src/schemas.js';
 import axios from 'axios';
 import { marked } from 'marked';
+import { runSimpleAgent } from './src/simple-agent.js';
 
 const BRAVE_API_KEY = process.env.BRAVE_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
 
 interface Session {
   id: string;
@@ -115,26 +115,26 @@ app.post('/api/logo-and-plan', async (req: Request, res: Response) => {
 
 
 app.post('/api/sessions', async (req: Request, res: Response) => {
-    if (!BROWSERBASE_API_KEY || !BROWSERBASE_PROJECT_ID) {
-        return res.status(400).json({ error: 'Missing API key or project ID.' });
-    }
-    try {
-        const response = await fetch('https://api.browserbase.com/v1/sessions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-BB-API-Key': BROWSERBASE_API_KEY,
-            },
-            body: JSON.stringify({
-                projectId: BROWSERBASE_PROJECT_ID,
-                keepAlive: true,
-            }),
-        });
-        const data = await response.json();
-        res.json(data);
-    } catch (error) {
-        res.status(500).json({ error: (error as Error).message });
-    }
+  if (!BROWSERBASE_API_KEY || !BROWSERBASE_PROJECT_ID) {
+    return res.status(400).json({ error: 'Missing API key or project ID.' });
+  }
+  try {
+    const bb = new Browserbase({ apiKey: BROWSERBASE_API_KEY });
+    const session = await bb.sessions.create({
+      projectId: BROWSERBASE_PROJECT_ID,
+      keepAlive: true,
+      browserSettings: {
+        viewport: { width: 1440, height: 900 },
+      },
+    });
+    res.json(session);
+  } catch (error: any) {
+    console.error('Session creation failed:', error?.response?.data || error?.message || error);
+    return res.status(500).json({
+      error: 'Failed to create session',
+      details: error?.response?.data || error?.message || String(error),
+    });
+  }
 });
 
 app.get('/api/sessions', async (req: Request, res: Response) => {
@@ -221,8 +221,6 @@ app.post("/api/start", (req: Request, res: Response) => {
 async function runAgent(page: Page, goal: string): Promise<{
   finalResponse: string;
   intentMap: any;
-  taskContext: any;
-  todos: string[];
 }> {
   const maxSteps = 5;
   let step = 0;
@@ -338,7 +336,7 @@ async function runAgent(page: Page, goal: string): Promise<{
       if (toolCalls.length === 0) {
         console.log(`LLM provided a text response: ${text}.`);
         history.push(`LLM Response: ${text}`);
-        if (step === maxSteps - 1) return { finalResponse: text, intentMap, taskContext, todos };
+        if (step === maxSteps - 1) return { finalResponse: text, intentMap };
         step++;
         continue;
       }
@@ -346,7 +344,7 @@ async function runAgent(page: Page, goal: string): Promise<{
       for (const toolCall of toolCalls) {
         console.log('Tool call: ', toolCall);
         if (toolCall.toolName === 'answer') {
-          return { finalResponse: toolCall.args.response, intentMap, taskContext, todos };
+          return { finalResponse: toolCall.args.response, intentMap };
         }
 
         // Only verify DOM-interaction actions with overseer
@@ -412,8 +410,6 @@ async function runAgent(page: Page, goal: string): Promise<{
       return {
         finalResponse: 'An error occurred during agent execution.',
         intentMap: null,
-        taskContext,
-        todos,
       };
     }
     step++;
@@ -421,8 +417,6 @@ async function runAgent(page: Page, goal: string): Promise<{
   return {
     finalResponse: 'Agent finished after maximum steps.',
     intentMap: null,
-    taskContext,
-    todos,
   };
 }
 
@@ -483,6 +477,52 @@ app.post("/api/suggestions", async (req: Request, res: Response) => {
   }
 });
 
+// Simple agent route: smaller multi-step loop with verification per step
+app.post("/api/simple-command", async (req: Request, res: Response) => {
+  const { prompt, sessionId, maxSteps } = req.body as { prompt: string; sessionId?: string; maxSteps?: number };
+
+  if (!prompt) {
+    return res.status(400).json({ error: "Missing prompt." });
+  }
+
+  if (!BROWSERBASE_API_KEY || !BROWSERBASE_PROJECT_ID) {
+    return res.status(400).json({ error: "Missing API key or project ID." });
+  }
+
+  const bb = new Browserbase({ apiKey: BROWSERBASE_API_KEY });
+
+  let session: Session | undefined;
+  let browser;
+
+  try {
+    if (sessionId) {
+      const response = await fetch(
+        `https://api.browserbase.com/v1/sessions/${sessionId}`,
+        { headers: { "X-BB-API-Key": BROWSERBASE_API_KEY } }
+      );
+      if (response.ok) session = (await response.json()) as Session;
+    }
+
+    if (!session) {
+      session = await bb.sessions.create({ projectId: BROWSERBASE_PROJECT_ID, keepAlive: true });
+    }
+
+    browser = await puppeteer.connect({ browserWSEndpoint: session.connectUrl });
+    const pages = await browser.pages();
+    const page = pages[0];
+
+    const result = await runSimpleAgent(page, prompt, { maxSteps });
+
+    res.json({
+      message: result.finalText,
+      steps: result.steps,
+      sessionId: session.id,
+    });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 app.post("/api/command", async (req: Request, res: Response) => {
   const { prompt, sessionId } = req.body;
 
@@ -530,14 +570,12 @@ app.post("/api/command", async (req: Request, res: Response) => {
     const pages = await browser.pages();
     const page = pages[0];
 
-    const { finalResponse, intentMap, taskContext, todos } = await runAgent(page, prompt);
+    const { finalResponse, intentMap } = await runAgent(page, prompt);
 
     res.json({
       message: finalResponse || `Task “[${prompt}]” Complete!`,
       sessionId: session.id,
       intentMap,
-      taskContext,
-      todos,
     });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
